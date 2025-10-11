@@ -1,4 +1,5 @@
 import Foundation
+import Network
 
 public class Session {
   private var messageId = SequenceNumber<UInt64>()
@@ -14,6 +15,9 @@ public class Session {
   public private(set) var maxWriteSize: UInt32 = 0
 
   public var server: String { connection.host }
+  public var state: NWConnection.State {
+    connection.state
+  }
   public private(set) var connectedTree: String?
 
   public var onDisconnected: (Error) -> Void {
