@@ -94,6 +94,7 @@ public class Connection {
   public func send(_ data: Data) async throws -> Data {
     await semaphore.wait()
     defer { Task { await semaphore.signal() } }
+    buffer.clear()
 
     switch connection.state {
     case .setup:
