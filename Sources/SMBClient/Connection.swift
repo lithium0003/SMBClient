@@ -166,10 +166,8 @@ public class Connection {
   private func completion2(result: Result<(), Error>, completion: @escaping (Result<Data, Error>) -> Void, length: Int) {
       switch result {
       case .success:
-        let transportPacket = DirectTCPPacket(response: self.buffer)
-        let length2 = Int(transportPacket.protocolLength)
-        let data = transportPacket.smb2Message
-        self.buffer = Data(self.buffer.suffix(from: 4 + length2))
+        let data = Data(self.buffer.prefix(length))
+        self.buffer = Data(self.buffer.suffix(from: length))
 
         let reader = ByteReader(data)
         var offset = 0
@@ -188,9 +186,6 @@ public class Connection {
             response += data
           case .pending:
             if self.buffer.count > 0 {
-              let transportPacket = DirectTCPPacket(response: self.buffer)
-              let length = Int(transportPacket.protocolLength)
-
               if self.buffer.count < length {
                 self.receive(upTo: length) { (result) in
                   self.completion2(result: result, completion: completion, length: length)
@@ -198,8 +193,8 @@ public class Connection {
                 return
               }
 
-              let data = transportPacket.smb2Message
-              self.buffer = Data(self.buffer.suffix(from: 4 + length))
+              let data = Data(self.buffer.prefix(length))
+              self.buffer = Data(self.buffer.suffix(from: length))
 
               let reader = ByteReader(data)
               let header: Header = reader.read()
