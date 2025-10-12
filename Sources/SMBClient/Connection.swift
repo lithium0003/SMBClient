@@ -159,7 +159,7 @@ public class Connection {
 
       self.buffer.append(Data(transportPacket.smb2Message))
 
-      let completion2 = { (result) in
+      let completion2 = { (result: Result<(), Error>) in
         switch result {
         case .success:
           let data = Data(self.buffer.prefix(length))
