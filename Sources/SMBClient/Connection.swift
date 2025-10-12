@@ -249,10 +249,6 @@ public class Connection {
         }
 
         self.buffer.append(data)
-        if context?.isFinal == true {
-          completion(.success(()))
-          return
-        }
         self.receive(upTo: byteCount, completion: completion)
       }
       return
