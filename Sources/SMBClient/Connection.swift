@@ -255,7 +255,6 @@ public class Connection {
         }
 
         self.buffer.append(data)
-        print(self.connection.state)
         self.receive(upTo: byteCount, completion: completion)
       }
       return
