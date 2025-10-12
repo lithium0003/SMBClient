@@ -158,8 +158,8 @@ public class Connection {
       let length = Int(transportPacket.protocolLength)
 
       self.buffer.append(Data(transportPacket.smb2Message))
-     
-      self.receive(upTo: length) { (result) in
+
+      let completion2 = { (result) in
         switch result {
         case .success:
           let data = Data(self.buffer.prefix(length))
@@ -186,7 +186,7 @@ public class Connection {
                 let length = Int(transportPacket.protocolLength)
 
                 if self.buffer.count < length {
-                  self.receive(upTo: length, completion: completion)
+                  self.receive(upTo: length, completion: completion2)
                   return
                 }
 
@@ -226,6 +226,7 @@ public class Connection {
           completion(.failure(error))
         }
       }
+      self.receive(upTo: length, completion: completion2)
     }
   }
 
