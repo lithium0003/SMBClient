@@ -20,14 +20,7 @@ public class Connection {
       host: NWEndpoint.Host(host),
       port: NWEndpoint.Port(integerLiteral: 445)
     )
-    let tcpOptions = NWProtocolTCP.Options()
-    tcpOptions.connectionTimeout = 5 // connection timed out
-    let tcpParames = NWParameters(tls: nil, tcp: tcpOptions)
-    if let isOption = tcpParames.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options {
-        isOption.version = .any
-    }
-    tcpParames.preferNoProxies = true
-    connection = NWConnection(to: endpoint, using: tcpParames)
+    connection = NWConnection(to: endpoint, using: .tcp)
     onDisconnected = { _ in }
   }
 
@@ -37,14 +30,7 @@ public class Connection {
       host: NWEndpoint.Host(host),
       port: NWEndpoint.Port(rawValue: UInt16(port))!
     )
-    let tcpOptions = NWProtocolTCP.Options()
-    tcpOptions.connectionTimeout = 5 // connection timed out
-    let tcpParames = NWParameters(tls: nil, tcp: tcpOptions)
-    if let isOption = tcpParames.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options {
-        isOption.version = .any
-    }
-    tcpParames.preferNoProxies = true
-    connection = NWConnection(to: endpoint, using: tcpParames)
+    connection = NWConnection(to: endpoint, using: .tcp)
     onDisconnected = { _ in }
   }
 
@@ -92,7 +78,9 @@ public class Connection {
   }
 
   public func send(_ data: Data) async throws -> Data {
-    await semaphore.wait()
+    if await semaphore.wait(timeout: .seconds(5)) == .timeout {
+      throw ConnectionError.timeout    
+    }
     defer { Task { await semaphore.signal() } }
 
     switch connection.state {
@@ -288,5 +276,6 @@ public enum ConnectionError: Error {
   case noData
   case disconnected
   case cancelled
+  case timeout
   case unknown
 }
