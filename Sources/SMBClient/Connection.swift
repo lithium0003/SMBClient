@@ -158,78 +158,82 @@ public class Connection {
       let length = Int(transportPacket.protocolLength)
 
       self.buffer.append(Data(transportPacket.smb2Message))
-
-      let completion2 = { (result: Result<(), Error>) in
-        switch result {
-        case .success:
-          let data = Data(self.buffer.prefix(length))
-          self.buffer = Data(self.buffer.suffix(from: length))
-
-          let reader = ByteReader(data)
-          var offset = 0
-
-          var header: Header
-          var response = Data()
-          repeat {
-            header = reader.read()
-
-            switch NTStatus(header.status) {
-            case
-              .success,
-              .moreProcessingRequired,
-              .noMoreFiles,
-              .endOfFile:
-              response += data
-            case .pending:
-              if self.buffer.count > 0 {
-                let transportPacket = DirectTCPPacket(response: self.buffer)
-                let length = Int(transportPacket.protocolLength)
-
-                if self.buffer.count < length {
-                  self.receive(upTo: length, completion: completion2)
-                  return
-                }
-
-                let data = transportPacket.smb2Message
-                self.buffer = Data(self.buffer.suffix(from: 4 + length))
-
-                let reader = ByteReader(data)
-                let header: Header = reader.read()
-
-                switch NTStatus(header.status) {
-                case
-                  .success,
-                  .moreProcessingRequired,
-                  .noMoreFiles,
-                  .endOfFile:
-                  response += data
-                  break
-                default:
-                  completion(.failure(ErrorResponse(data: data)))
-                  return
-                }
-              } else {
-                self.receive(completion: completion)
-                return
-              }
-            default:
-              completion(.failure(ErrorResponse(data: Data(data[offset...]))))
-              return
-            }
-
-            offset += Int(header.nextCommand)
-            reader.seek(to: offset)
-          } while header.nextCommand > 0
-
-          completion(.success(response))
-        case .failure(let error):
-          completion(.failure(error))
-        }
+      self.receive(upTo: length) { (result) in
+        self.completion2(result: result, completion: completion, length: length)
       }
-      self.receive(upTo: length, completion: completion2)
     }
   }
 
+  private func completion2(result: Result<(), Error>, completion: @escaping (Result<Data, Error>) -> Void, length: Int) {
+      switch result {
+      case .success:
+        let data = Data(self.buffer.prefix(length))
+        self.buffer = Data(self.buffer.suffix(from: length))
+
+        let reader = ByteReader(data)
+        var offset = 0
+
+        var header: Header
+        var response = Data()
+        repeat {
+          header = reader.read()
+
+          switch NTStatus(header.status) {
+          case
+            .success,
+            .moreProcessingRequired,
+            .noMoreFiles,
+            .endOfFile:
+            response += data
+          case .pending:
+            if self.buffer.count > 0 {
+              let transportPacket = DirectTCPPacket(response: self.buffer)
+              let length = Int(transportPacket.protocolLength)
+
+              if self.buffer.count < length {
+                self.receive(upTo: length) { (result) in
+                  self.completion2(result: result, completion: completion, length: length)
+                }
+                return
+              }
+
+              let data = transportPacket.smb2Message
+              self.buffer = Data(self.buffer.suffix(from: 4 + length))
+
+              let reader = ByteReader(data)
+              let header: Header = reader.read()
+
+              switch NTStatus(header.status) {
+              case
+                .success,
+                .moreProcessingRequired,
+                .noMoreFiles,
+                .endOfFile:
+                response += data
+                break
+              default:
+                completion(.failure(ErrorResponse(data: data)))
+                return
+              }
+            } else {
+              self.receive(completion: completion)
+              return
+            }
+          default:
+            completion(.failure(ErrorResponse(data: Data(data[offset...]))))
+            return
+          }
+
+          offset += Int(header.nextCommand)
+          reader.seek(to: offset)
+        } while header.nextCommand > 0
+
+        completion(.success(response))
+      case .failure(let error):
+        completion(.failure(error))
+      }
+  }
+  
   private func receive(upTo byteCount: Int, completion: @escaping (Result<(), Error>) -> Void) {
     let minimumIncompleteLength = 0
     let maximumLength = 65536
