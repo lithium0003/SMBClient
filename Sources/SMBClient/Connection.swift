@@ -193,24 +193,7 @@ public class Connection {
                 return
               }
 
-              let data = Data(self.buffer.prefix(length))
-              self.buffer = Data(self.buffer.suffix(from: length))
-
-              let reader = ByteReader(data)
-              let header: Header = reader.read()
-
-              switch NTStatus(header.status) {
-              case
-                .success,
-                .moreProcessingRequired,
-                .noMoreFiles,
-                .endOfFile:
-                response += data
-                break
-              default:
-                completion(.failure(ErrorResponse(data: data)))
-                return
-              }
+              response += data
             } else {
               self.receive(completion: completion)
               return
