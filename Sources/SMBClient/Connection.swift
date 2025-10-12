@@ -153,11 +153,20 @@ public class Connection {
         return
       }
 
-      let transportPacket = DirectTCPPacket(response: content)
-      let length = Int(transportPacket.protocolLength)
+      let length: Int
+      if self.buffer.isEmpty {
+        let transportPacket = DirectTCPPacket(response: content)
+        length = Int(transportPacket.protocolLength)
 
-      self.buffer.append(Data(transportPacket.smb2Message))
+        self.buffer.append(Data(transportPacket.smb2Message))
+      }
+      else {
+        let transportPacket = DirectTCPPacket(response: self.buffer)
+        length = Int(transportPacket.protocolLength)
 
+        self.buffer.append(Data(content))
+      }
+     
       self.receive(upTo: length) { (result) in
         switch result {
         case .success:
