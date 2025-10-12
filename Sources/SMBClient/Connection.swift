@@ -233,7 +233,7 @@ public class Connection {
     let maximumLength = 65536
 
     if self.buffer.count < byteCount {
-      self.connection.receive(minimumIncompleteLength: minimumIncompleteLength, maximumLength: maximumLength) { (data, _, isComplete, error) in
+      self.connection.receive(minimumIncompleteLength: minimumIncompleteLength, maximumLength: maximumLength) { (data, context, isComplete, error) in
         if let error = error {
           completion(.failure(error))
           return
@@ -246,6 +246,10 @@ public class Connection {
             completion(.failure(ConnectionError.noData))
           }
           return
+        }
+
+        if context?.isFinal == true {
+          completion(.success(()))
         }
 
         self.buffer.append(data)
