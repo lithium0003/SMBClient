@@ -22,7 +22,6 @@ public class Connection {
     )
     let tcpOptions = NWProtocolTCP.Options()
     tcpOptions.connectionTimeout = 5 // connection timed out
-    tcpOptions.connectionDropTime = 5
     let tcpParames = NWParameters(tls: nil, tcp: tcpOptions)
     if let isOption = tcpParames.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options {
         isOption.version = .any
@@ -40,7 +39,6 @@ public class Connection {
     )
     let tcpOptions = NWProtocolTCP.Options()
     tcpOptions.connectionTimeout = 5 // connection timed out
-    tcpOptions.connectionDropTime = 5
     let tcpParames = NWParameters(tls: nil, tcp: tcpOptions)
     if let isOption = tcpParames.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options {
         isOption.version = .any
