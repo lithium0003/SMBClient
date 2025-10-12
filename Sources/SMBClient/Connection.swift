@@ -186,6 +186,9 @@ public class Connection {
             response += data
           case .pending:
             if self.buffer.count > 0 {
+              let transportPacket = DirectTCPPacket(response: self.buffer)
+              let length = Int(transportPacket.protocolLength)
+              
               if self.buffer.count < length {
                 self.receive(upTo: length) { (result) in
                   self.completion2(result: result, completion: completion, length: length)
@@ -193,7 +196,24 @@ public class Connection {
                 return
               }
 
-              response += data
+              let data = transportPacket.smb2Message
+              self.buffer = Data(self.buffer.suffix(from: 4 + length))
+
+              let reader = ByteReader(data)
+              let header: Header = reader.read()
+
+              switch NTStatus(header.status) {
+              case
+                .success,
+                .moreProcessingRequired,
+                .noMoreFiles,
+                .endOfFile:
+                response += data
+                break
+              default:
+                completion(.failure(ErrorResponse(data: data)))
+                return
+              }
             } else {
               self.receive(completion: completion)
               return
