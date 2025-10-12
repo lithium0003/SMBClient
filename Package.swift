@@ -6,7 +6,7 @@ let package = Package(
   name: "SMBClient",
   platforms: [
     .macOS(.v10_15),
-    .iOS(.v13),
+    .iOS(.v16),
     .visionOS(.v1)
   ],
   products: [
