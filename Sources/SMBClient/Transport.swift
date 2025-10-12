@@ -28,7 +28,7 @@ public struct DirectTCPPacket {
     let reader = ByteReader(response)
     zero = 0
 
-    var length: UInt32 = reader.read()
+    let length = (reader.read() as UInt32).bigEndian
 
     var data = Data(capacity: 3)
     let byte1 = UInt8((length >> 16) & 0x000000FF)
@@ -39,7 +39,7 @@ public struct DirectTCPPacket {
     data.append(byte3)
 
     streamProtocolLength = data
-    protocolLength = Data(bytes: &length, count: 4).withUnsafeBytes { $0.load(as: UInt32.self) }.bigEndian
+    protocolLength = length
 
     smb2Message = Data(reader.remaining())
   }
