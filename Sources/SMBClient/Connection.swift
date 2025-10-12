@@ -166,8 +166,10 @@ public class Connection {
   private func completion2(result: Result<(), Error>, completion: @escaping (Result<Data, Error>) -> Void, length: Int) {
       switch result {
       case .success:
-        let data = Data(self.buffer.prefix(length))
-        self.buffer = Data(self.buffer.suffix(from: length))
+        let transportPacket = DirectTCPPacket(response: self.buffer)
+        let length2 = Int(transportPacket.protocolLength)
+        let data = transportPacket.smb2Message
+        self.buffer = Data(self.buffer.suffix(from: 4 + length2))
 
         let reader = ByteReader(data)
         var offset = 0
