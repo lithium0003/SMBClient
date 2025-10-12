@@ -216,7 +216,9 @@ public class Connection {
                 return
               }
             } else {
-              self.receive(completion: completion)
+              self.receive(upTo: length) { (result) in
+                self.completion2(result: result, completion: completion, length: length)
+              }
               return
             }
           default:
