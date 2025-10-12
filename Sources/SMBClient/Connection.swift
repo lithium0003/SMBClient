@@ -21,14 +21,14 @@ public class Connection {
       port: NWEndpoint.Port(integerLiteral: 445)
     )
     let tcpOptions = NWProtocolTCP.Options()
-    options.connectionTimeout = 5 // connection timed out
-    options.connectionDropTime = 5
-    let parames = NWParameters(tls: nil, tcp: tcpOptions)
-    if let isOption = parames.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options {
+    tcpOptions.connectionTimeout = 5 // connection timed out
+    tcpOptions.connectionDropTime = 5
+    let tcpParames = NWParameters(tls: nil, tcp: tcpOptions)
+    if let isOption = tcpParames.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options {
         isOption.version = .any
     }
-    parames.preferNoProxies = true
-    connection = NWConnection(to: endpoint, using: parames)
+    tcpParames.preferNoProxies = true
+    connection = NWConnection(to: endpoint, using: tcpParames)
     onDisconnected = { _ in }
   }
 
@@ -39,14 +39,14 @@ public class Connection {
       port: NWEndpoint.Port(rawValue: UInt16(port))!
     )
     let tcpOptions = NWProtocolTCP.Options()
-    options.connectionTimeout = 5 // connection timed out
-    options.connectionDropTime = 5
-    let parames = NWParameters(tls: nil, tcp: tcpOptions)
-    if let isOption = parames.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options {
+    tcpOptions.connectionTimeout = 5 // connection timed out
+    tcpOptions.connectionDropTime = 5
+    let tcpParames = NWParameters(tls: nil, tcp: tcpOptions)
+    if let isOption = tcpParames.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options {
         isOption.version = .any
     }
-    parames.preferNoProxies = true
-    connection = NWConnection(to: endpoint, using: parames)
+    tcpParames.preferNoProxies = true
+    connection = NWConnection(to: endpoint, using: tcpParames)
     onDisconnected = { _ in }
   }
 
