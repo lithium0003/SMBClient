@@ -28,7 +28,7 @@ public struct DirectTCPPacket {
     let reader = ByteReader(response)
     zero = 0
 
-    let length = (reader.read() as UInt32).bigEndian
+    let length = (reader.read() as UInt32).bigEndian & 0x00FFFFFF
 
     var data = Data(capacity: 3)
     let byte1 = UInt8((length >> 16) & 0x000000FF)
