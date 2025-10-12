@@ -164,8 +164,6 @@ public class Connection {
       else {
         let transportPacket = DirectTCPPacket(response: self.buffer)
         length = Int(transportPacket.protocolLength)
-
-        self.buffer.append(Data(content))
       }
      
       self.receive(upTo: length) { (result) in
