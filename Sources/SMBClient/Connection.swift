@@ -5,22 +5,6 @@ public class Connection {
   let host: String
   var onDisconnected: (Error) -> Void
 
-  private lazy var tcpOptions: NWProtocolTCP.Options = {
-      let options = NWProtocolTCP.Options()
-      options.connectionTimeout = 5 // connection timed out
-      options.connectionDropTime = 5
-      return options
-  }()
-
-  private lazy var parames: NWParameters = {
-      let parames = NWParameters(tls: nil, tcp: self.tcpOptions)
-      if let isOption = parames.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options {
-          isOption.version = .any
-      }
-      parames.preferNoProxies = true
-      return parames
-  }()
-
   private let connection: NWConnection
   private var buffer = Data()
 
@@ -36,7 +20,15 @@ public class Connection {
       host: NWEndpoint.Host(host),
       port: NWEndpoint.Port(integerLiteral: 445)
     )
-    connection = NWConnection(to: endpoint, using: self.parames)
+    let tcpOptions = NWProtocolTCP.Options()
+    options.connectionTimeout = 5 // connection timed out
+    options.connectionDropTime = 5
+    let parames = NWParameters(tls: nil, tcp: tcpOptions)
+    if let isOption = parames.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options {
+        isOption.version = .any
+    }
+    parames.preferNoProxies = true
+    connection = NWConnection(to: endpoint, using: parames)
     onDisconnected = { _ in }
   }
 
@@ -46,7 +38,15 @@ public class Connection {
       host: NWEndpoint.Host(host),
       port: NWEndpoint.Port(rawValue: UInt16(port))!
     )
-    connection = NWConnection(to: endpoint, using: self.parames)
+    let tcpOptions = NWProtocolTCP.Options()
+    options.connectionTimeout = 5 // connection timed out
+    options.connectionDropTime = 5
+    let parames = NWParameters(tls: nil, tcp: tcpOptions)
+    if let isOption = parames.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options {
+        isOption.version = .any
+    }
+    parames.preferNoProxies = true
+    connection = NWConnection(to: endpoint, using: parames)
     onDisconnected = { _ in }
   }
 
