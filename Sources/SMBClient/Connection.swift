@@ -20,7 +20,11 @@ public class Connection {
       host: NWEndpoint.Host(host),
       port: NWEndpoint.Port(integerLiteral: 445)
     )
-    connection = NWConnection(to: endpoint, using: .tcp)
+    let options = NWProtocolTCP.Options()
+    options.noDelay = true
+    options.connectionTimeout = 5
+    options.connectionDropTime = 10
+    connection = NWConnection(to: endpoint, using: .init(tls: nil, tcp: options))
     onDisconnected = { _ in }
   }
 
@@ -30,7 +34,11 @@ public class Connection {
       host: NWEndpoint.Host(host),
       port: NWEndpoint.Port(rawValue: UInt16(port))!
     )
-    connection = NWConnection(to: endpoint, using: .tcp)
+    let options = NWProtocolTCP.Options()
+    options.noDelay = true
+    options.connectionTimeout = 5
+    options.connectionDropTime = 10
+    connection = NWConnection(to: endpoint, using: .init(tls: nil, tcp: options))
     onDisconnected = { _ in }
   }
 
