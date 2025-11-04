@@ -43,21 +43,34 @@ public class Connection {
   }
 
   public func connect() async throws {
+    let semaphore = Semaphore(value: 0)
+    let timeoutTask = Task {
+      await semaphore.wait()
+      try? await Task.sleep(for: .seconds(10))
+      if Task.isCancelled { return }
+      connection.cancel()
+    }
     return try await withCheckedThrowingContinuation { (continuation) in
       connection.stateUpdateHandler = { (state) in
         switch state {
-        case .setup, .preparing:
+        case .setup:
           break
+        case .preparing:
+          Task { await semaphore.signal() }
         case .waiting(let error):
+          timeoutTask.cancel()
           continuation.resume(throwing: error)
           self.connection.stateUpdateHandler = nil
         case .ready:
+          timeoutTask.cancel()
           continuation.resume()
           self.connection.stateUpdateHandler = stateUpdateHandler
         case .failed(let error):
+          timeoutTask.cancel()
           continuation.resume(throwing: error)
           self.connection.stateUpdateHandler = nil
         case .cancelled:
+          timeoutTask.cancel()
           continuation.resume(throwing: ConnectionError.cancelled)
           self.connection.stateUpdateHandler = nil
         @unknown default:
