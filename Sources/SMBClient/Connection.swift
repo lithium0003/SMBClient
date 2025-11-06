@@ -84,10 +84,20 @@ public class Connection {
     @Sendable
     func stateUpdateHandler(_ state: NWConnection.State) {
       switch state {
-      case .waiting(let error), .failed(let error):
+      case .waiting(let error):
+        print("waiting", error)
         onDisconnected(error)
-      case .setup, .preparing, .ready, .cancelled:
-        break
+      case .failed(let error):
+        print("failed", error)
+        onDisconnected(error)
+      case .setup:
+        print("setup")
+      case .preparing:
+        print("preparing")
+      case .ready:
+        print("ready")
+      case .cancelled:
+        print("cancelled")
       @unknown default:
         break
       }
