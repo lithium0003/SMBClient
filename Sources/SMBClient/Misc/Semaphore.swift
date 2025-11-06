@@ -17,39 +17,38 @@ public actor Semaphore {
         await wait(id: UUID())
     }
     
-    func wait(id: UUID) async {
+    private func wait(id: UUID) async {
         value -= 1
-        guard value < 0 else { return }
+        if value > 0 { return }
         await withCheckedContinuation {
             idlist.append(id)
             waiters[id] = $0
         }
     }
     
-    public func wait(timeout: ContinuousClock.Instant.Duration) async -> waitResult {
+    @discardableResult
+    public func wait(timeout: Duration) async -> waitResult {
         let id = UUID()
-        do {
-            try await withThrowingTaskGroup(of: Void.self) { group in
-                group.addTask {
-                    await self.wait(id: id)
-                }
-                group.addTask {
-                    try await Task.sleep(for: timeout)
-                    throw CancellationError()
-                }
-                let _ = try await group.next()!
-                group.cancelAll()
+        return await withTaskGroup(of: waitResult.self) { group in
+            group.addTask {
+                await self.wait(id: id)
+                return .success
             }
-            return .success
-        }
-        catch {
-            value += 1
-            if let i = idlist.firstIndex(of: id) {
-                idlist.remove(at: i)
+            group.addTask {
+                try? await Task.sleep(for: timeout)
+                return .timeout
             }
-            waiters[id]?.resume()
-            waiters.removeValue(forKey: id)
-            return .timeout
+            let v = await group.next()!
+            group.cancelAll()
+            if v == .timeout {
+                value += 1
+                if let i = idlist.firstIndex(of: id) {
+                    idlist.remove(at: i)
+                }
+                waiters[id]?.resume()
+                waiters.removeValue(forKey: id)
+            }
+            return v
         }
     }
     
