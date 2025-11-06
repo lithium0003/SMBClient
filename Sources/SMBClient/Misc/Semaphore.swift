@@ -19,7 +19,7 @@ public actor Semaphore {
     
     private func wait(id: UUID) async {
         value -= 1
-        if value > 0 { return }
+        if value >= 0 { return }
         await withCheckedContinuation {
             idlist.append(id)
             waiters[id] = $0
