@@ -22,8 +22,8 @@ public class Connection {
     )
     let options = NWProtocolTCP.Options()
     options.noDelay = true
-    options.connectionTimeout = 5
-    options.connectionDropTime = 10
+    options.connectionTimeout = 30
+    options.connectionDropTime = 30
     connection = NWConnection(to: endpoint, using: .init(tls: nil, tcp: options))
     onDisconnected = { _ in }
   }
@@ -36,8 +36,8 @@ public class Connection {
     )
     let options = NWProtocolTCP.Options()
     options.noDelay = true
-    options.connectionTimeout = 5
-    options.connectionDropTime = 10
+    options.connectionTimeout = 30
+    options.connectionDropTime = 30
     connection = NWConnection(to: endpoint, using: .init(tls: nil, tcp: options))
     onDisconnected = { _ in }
   }
@@ -109,7 +109,7 @@ public class Connection {
   }
 
   public func send(_ data: Data) async throws -> Data {
-    if await semaphore.wait(timeout: .seconds(5)) == .timeout {
+    if await semaphore.wait(timeout: .seconds(30)) == .timeout {
       throw ConnectionError.timeout    
     }
     defer { Task { await semaphore.signal() } }
