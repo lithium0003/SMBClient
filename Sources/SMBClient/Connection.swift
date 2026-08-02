@@ -27,7 +27,6 @@ public class Connection {
     options.connectionTimeout = 30
     options.connectionDropTime = 30
     connection = NWConnection(to: endpoint, using: .init(tls: nil, tcp: options))
-    connection = NWConnection(to: endpoint, using: .tcp)
     queue = DispatchQueue(label: "com.kishikawakatsumi.smbclient.connection.\(host):445", qos: .userInitiated)
     onDisconnected = { _ in }
   }
@@ -43,7 +42,6 @@ public class Connection {
     options.connectionTimeout = 30
     options.connectionDropTime = 30
     connection = NWConnection(to: endpoint, using: .init(tls: nil, tcp: options))
-    connection = NWConnection(to: endpoint, using: .tcp)
     queue = DispatchQueue(label: "com.kishikawakatsumi.smbclient.connection.\(host):\(port)", qos: .userInitiated)
     onDisconnected = { _ in }
   }
