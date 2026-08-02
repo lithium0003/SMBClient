@@ -6,6 +6,7 @@ public class Connection {
   var onDisconnected: (Error) -> Void
 
   private let connection: NWConnection
+  private let queue: DispatchQueue
   private var buffer = Data()
 
   private let semaphore = Semaphore(value: 1)
@@ -16,6 +17,7 @@ public class Connection {
 
   public init(host: String) {
     self.host = host
+    
     let endpoint = NWEndpoint.hostPort(
       host: NWEndpoint.Host(host),
       port: NWEndpoint.Port(integerLiteral: 445)
@@ -25,6 +27,8 @@ public class Connection {
     options.connectionTimeout = 30
     options.connectionDropTime = 30
     connection = NWConnection(to: endpoint, using: .init(tls: nil, tcp: options))
+    connection = NWConnection(to: endpoint, using: .tcp)
+    queue = DispatchQueue(label: "com.kishikawakatsumi.smbclient.connection.\(host):445", qos: .userInitiated)
     onDisconnected = { _ in }
   }
 
@@ -39,6 +43,8 @@ public class Connection {
     options.connectionTimeout = 30
     options.connectionDropTime = 30
     connection = NWConnection(to: endpoint, using: .init(tls: nil, tcp: options))
+    connection = NWConnection(to: endpoint, using: .tcp)
+    queue = DispatchQueue(label: "com.kishikawakatsumi.smbclient.connection.\(host):\(port)", qos: .userInitiated)
     onDisconnected = { _ in }
   }
 
@@ -51,7 +57,7 @@ public class Connection {
       connection.cancel()
     }
     return try await withCheckedThrowingContinuation { (continuation) in
-      connection.stateUpdateHandler = { (state) in
+      connection.stateUpdateHandler = { [weak self] (state) in
         switch state {
         case .setup:
           break
@@ -60,25 +66,37 @@ public class Connection {
         case .waiting(let error):
           timeoutTask.cancel()
           continuation.resume(throwing: error)
-          self.connection.stateUpdateHandler = nil
+          self?.connection.stateUpdateHandler = nil
         case .ready:
           timeoutTask.cancel()
           continuation.resume()
-          self.connection.stateUpdateHandler = stateUpdateHandler
+          // NWConnection delivers all state updates on `queue`, so assigning
+          // stateUpdateHandler here is safe: it runs on the same serial queue
+          // as any future state updates.
+          self?.connection.stateUpdateHandler = { [weak self] state in
+            switch state {
+            case .waiting(let error), .failed(let error):
+              self?.onDisconnected(error)
+            case .setup, .preparing, .ready, .cancelled:
+              break
+            @unknown default:
+              break
+            }
+          }
         case .failed(let error):
           timeoutTask.cancel()
           continuation.resume(throwing: error)
-          self.connection.stateUpdateHandler = nil
+          self?.connection.stateUpdateHandler = nil
         case .cancelled:
           timeoutTask.cancel()
           continuation.resume(throwing: ConnectionError.cancelled)
-          self.connection.stateUpdateHandler = nil
+          self?.connection.stateUpdateHandler = nil
         @unknown default:
           break
         }
       }
 
-      connection.start(queue: .global(qos: .userInitiated))
+      connection.start(queue: queue)
     }
 
     @Sendable
@@ -105,6 +123,11 @@ public class Connection {
   }
 
   public func disconnect() {
+    // Do not nil stateUpdateHandler before cancelling: NWConnection delivers
+    // the .cancelled state update asynchronously, and clearing the handler
+    // first would prevent any in-flight connect() continuation from being
+    // resumed, causing a hang. The retain cycle is instead broken by
+    // capturing self weakly in the handler closures.
     connection.cancel()
   }
 
@@ -151,7 +174,7 @@ public class Connection {
   }
 
   private func receive(completion: @escaping (Result<Data, Error>) -> Void) {
-    let minimumIncompleteLength = 0
+    let minimumIncompleteLength = 1
     let maximumLength = 65536
 
     connection.receive(
@@ -167,114 +190,99 @@ public class Connection {
         if isComplete {
           completion(.failure(ConnectionError.disconnected))
         } else {
-          completion(.failure(ConnectionError.noData))
+          self.receive(completion: completion)
         }
         return
       }
 
-      let transportPacket = DirectTCPPacket(response: content)
-      let length = Int(transportPacket.protocolLength)
+      self.buffer.append(Data(content))
 
-      self.buffer.append(Data(transportPacket.smb2Message))
-      self.receive(upTo: length) { (result) in
-        switch result {
-        case .success:
-          let data = Data(self.buffer.prefix(length))
-          self.buffer = Data(self.buffer.suffix(from: length))
-  
-          let reader = ByteReader(data)
-          var offset = 0
-  
-          var header: Header
-          var response = Data()
-          repeat {
-            header = reader.read()
-  
-            switch NTStatus(header.status) {
-            case
-              .success,
-              .moreProcessingRequired,
-              .noMoreFiles,
-              .endOfFile:
-              response += data
-            case .pending:
-              if self.buffer.count > 0 {
-                let transportPacket = DirectTCPPacket(response: self.buffer)
-                let length = Int(transportPacket.protocolLength)
-                
-                if self.buffer.count < length {
-                  self.receive(upTo: length) { (result) in
-                    switch result {
-                    case .success:
-                      let transportPacket = DirectTCPPacket(response: self.buffer)
-                      let length = Int(transportPacket.protocolLength)
-  
-                      let data = transportPacket.smb2Message
-                      self.buffer = Data(self.buffer.suffix(from: 4 + length))
-  
-                      let reader = ByteReader(data)
-                      let header: Header = reader.read()
-        
-                      switch NTStatus(header.status) {
-                      case
-                        .success,
-                        .moreProcessingRequired,
-                        .noMoreFiles,
-                        .endOfFile:
-                        completion(.success(data))
-                        return
-                      default:
-                        completion(.failure(ErrorResponse(data: data)))
-                        return
-                      }
-                    case .failure(let error):
-                      completion(.failure(error))
-                    }
-                  }
-                  return
-                }
-  
-                let data = transportPacket.smb2Message
-                self.buffer = Data(self.buffer.suffix(from: 4 + length))
-  
-                let reader = ByteReader(data)
-                let header: Header = reader.read()
-  
-                switch NTStatus(header.status) {
-                case
-                  .success,
-                  .moreProcessingRequired,
-                  .noMoreFiles,
-                  .endOfFile:
-                  response += data
-                  break
-                default:
-                  completion(.failure(ErrorResponse(data: data)))
-                  return
-                }
-              } else {
-                self.receive(completion: completion)
-                return
-              }
-            default:
-              completion(.failure(ErrorResponse(data: Data(data[offset...]))))
-              return
-            }
-  
-            offset += Int(header.nextCommand)
-            reader.seek(to: offset)
-          } while header.nextCommand > 0
-  
-          completion(.success(response))
+      self.receive(upTo: 4) { (headerResult) in
+        switch headerResult {
         case .failure(let error):
           completion(.failure(error))
+          return
+        case .success:
+          break
+        }
+
+        let transportPacket = DirectTCPPacket(response: self.buffer)
+        let length = Int(transportPacket.protocolLength)
+        self.buffer = Data(transportPacket.smb2Message)
+
+        self.receive(upTo: length) { (result) in
+          switch result {
+          case .success:
+            let data = Data(self.buffer.prefix(length))
+            self.buffer = Data(self.buffer.suffix(from: length))
+
+            let reader = ByteReader(data)
+            var offset = 0
+
+            var header: Header
+            var response = Data()
+            repeat {
+              header = reader.read()
+
+              switch NTStatus(header.status) {
+              case
+                .success,
+                .moreProcessingRequired,
+                .noMoreFiles,
+                .endOfFile:
+                response += data
+              case .pending:
+                if self.buffer.count >= 4 {
+                  let transportPacket = DirectTCPPacket(response: self.buffer)
+                  let length = Int(transportPacket.protocolLength)
+
+                  if self.buffer.count < 4 + length {
+                    self.receive(completion: completion)
+                    return
+                  }
+
+                  let data = transportPacket.smb2Message
+                  self.buffer = Data(self.buffer.suffix(from: 4 + length))
+
+                  let reader = ByteReader(data)
+                  let header: Header = reader.read()
+
+                  switch NTStatus(header.status) {
+                  case
+                    .success,
+                    .moreProcessingRequired,
+                    .noMoreFiles,
+                    .endOfFile:
+                    response += data
+                    break
+                  default:
+                    completion(.failure(ErrorResponse(data: data)))
+                    return
+                  }
+                } else {
+                  self.receive(completion: completion)
+                  return
+                }
+              default:
+                completion(.failure(ErrorResponse(data: Data(data[offset...]))))
+                return
+              }
+
+              offset += Int(header.nextCommand)
+              reader.seek(to: offset)
+            } while header.nextCommand > 0
+
+            completion(.success(response))
+          case .failure(let error):
+            completion(.failure(error))
+          }
         }
       }
     }
   }
   
   private func receive(upTo byteCount: Int, completion: @escaping (Result<(), Error>) -> Void) {
-    let minimumIncompleteLength = 0
+    let minimumIncompleteLength = 1
     let maximumLength = 65536
 
     if self.buffer.count < byteCount {
@@ -288,7 +296,7 @@ public class Connection {
           if isComplete {
             completion(.failure(ConnectionError.disconnected))
           } else {
-            completion(.failure(ConnectionError.noData))
+            self.receive(upTo: byteCount, completion: completion)
           }
           return
         }
@@ -304,7 +312,6 @@ public class Connection {
 }
 
 public enum ConnectionError: Error {
-  case noData
   case disconnected
   case cancelled
   case timeout
